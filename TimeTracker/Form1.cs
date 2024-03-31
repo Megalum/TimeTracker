@@ -1,47 +1,118 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
 using System.Data;
-using System.Drawing;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows.Forms;
 using System.Data.SqlClient;
+using System.Drawing;
+using System.Windows.Forms;
 
 namespace TimeTracker
 {
-
     public partial class Form1 : Form
     {
-
-        DataBase dataBase = new DataBase();
-        int selectedRows;
-        bool status;
-        string id;
-
+        private DataBase dataBase = new DataBase();
+        private string id;
+        private int selectedRows;
+        private bool status;
         public Form1()
         {
             InitializeComponent();
         }
 
-        private string getID(string text)
+        private void button1_Click(object sender, EventArgs e)
         {
-            return comboBox2.Items[0].ToString();
+            tabControl1.SelectedIndex = 1;
         }
 
-        private bool statusProgress()
+        private async void button2_Click(object sender, EventArgs e)
         {
-            for (int i = 0; i < dataGridView1.Rows.Count - 1; i++)
+            if (status)
             {
-                if (dataGridView1.Rows[i].Cells[1].Value.Equals(DateTime.Today) &&
-                    dataGridView1.Rows[i].Cells[5].Value.Equals("Выполняется"))
-                {
-                    id = dataGridView1.Rows[i].Cells[0].Value.ToString();
-                    return true;
-                }
+                label8.Visible = true;
+                comboBox1.Visible = true;
+                status = false;
+                button2.Text = "Начать";
+                await dataBase.EndStartlementTaskAsync(id, "Выполняется", null, DateTime.Now.TimeOfDay.ToString().Remove(8));
+                dataBase.closeConnection();
+                refrashDataGrid(dataGridView1);
+                createBox(DateTime.Today);
             }
-            return false;
+            else
+            {
+                label8.Visible = false;
+                comboBox1.Visible = false;
+                status = true;
+                id = comboBox2.Items[comboBox1.SelectedIndex].ToString();
+                button2.Text = "Закончить";
+                await dataBase.EndStartlementTaskAsync(id, "Выполняется", DateTime.Now.TimeOfDay.ToString().Remove(8), null);
+                dataBase.closeConnection();
+                refrashDataGrid(dataGridView1);
+            }
+            editInfomarion(DateTime.Today);
+        }
+
+        private void button3_Click(object sender, EventArgs e)
+        {
+            Close();
+        }
+
+        private void button4_Click(object sender, EventArgs e)
+        {
+            tabControl1.SelectedIndex = 0;
+        }
+
+        private async void button5_Click(object sender, EventArgs e)
+        {
+            if (dateTimePicker3.Value.TimeOfDay < dateTimePicker2.Value.TimeOfDay)
+            {
+                MessageBox.Show("Время начала не может быть позднее времени окончания!", "Error");
+            }
+            else if (textBox2.Text == "")
+            {
+                MessageBox.Show("Заполните поле планирование!", "Error");
+            }
+            else
+            {
+                await dataBase.InsertElementAsync(dateTimePicker1.Value.ToString().Remove(10, 8), textBox2.Text, dateTimePicker2.Value.TimeOfDay, dateTimePicker3.Value.TimeOfDay, "Ожидается");
+                refrashDataGrid(dataGridView1);
+                createBox(DateTime.Today);
+
+                textBox2.Text = "";
+                dateTimePicker1.Value = DateTime.Today;
+                dateTimePicker2.Value = DateTime.Today;
+                dateTimePicker3.Value = DateTime.Today;
+                tabControl1.SelectedIndex = 0;
+            }
+        }
+
+        private void button6_Click(object sender, EventArgs e)
+        {
+            tabControl1.SelectedIndex = 0;
+        }
+
+        private async void button7_Click(object sender, EventArgs e)
+        {
+            if (dateTimePicker4.Value.TimeOfDay < dateTimePicker5.Value.TimeOfDay)
+            {
+                MessageBox.Show("Время начала не может быть позднее времени окончания!", "Error");
+            }
+            else if (textBox3.Text == "")
+            {
+                MessageBox.Show("Заполните поле планирование!", "Error");
+            }
+            else
+            {
+                await dataBase.UpdateElementAsync(dataGridView1.Rows[selectedRows].Cells[0].Value.ToString(), textBox3.Text, dateTimePicker5.Value.TimeOfDay, dateTimePicker4.Value.TimeOfDay);
+                refrashDataGrid(dataGridView1);
+                readClone(dataGridView1, dataGridView2);
+                editInfomarion(DateTime.Today);
+            }
+        }
+
+        private async void button8_Click(object sender, EventArgs e)
+        {
+            await dataBase.GetElemenyByIdAsync(dataGridView1.Rows[selectedRows].Cells[0].Value.ToString());
+            refrashDataGrid(dataGridView1);
+            readClone(dataGridView1, dataGridView2);
+            editInfomarion(DateTime.Today);
         }
 
         private void createBox(DateTime date)
@@ -60,7 +131,8 @@ namespace TimeTracker
             if (comboBox1.Items.Count == 0)
             {
                 button2.Enabled = false;
-            } else
+            }
+            else
             {
                 comboBox1.SelectedIndex = 0;
             }
@@ -74,8 +146,8 @@ namespace TimeTracker
             dataGridView1.Columns.Add("Time_Stop", "Time_Stop");
             dataGridView1.Columns.Add("Task", "Task");
             dataGridView1.Columns.Add("Status_Task", "Status");
-
         }
+
         private void createColumns(DataGridView dwg)
         {
             dwg.Columns.Add("Date", "Дата");
@@ -85,38 +157,29 @@ namespace TimeTracker
             dwg.Columns.Add("Status_Task", "Статус");
         }
 
-        private void readSingleRow(DataGridView dwg, IDataRecord record)
+        private void dataGridView2_CellClick(object sender, DataGridViewCellEventArgs e)
         {
-            dwg.Rows.Add(record.GetInt32(0), record.GetValue(1), record.GetValue(2), record.GetValue(3), record.GetString(4), record.GetString(5));
-        }
+            label5.Visible = true;
+            label6.Visible = true;
+            label7.Visible = true;
+            textBox3.Visible = true;
+            dateTimePicker4.Visible = true;
+            dateTimePicker5.Visible = true;
 
-        private void readClone(DataGridView firstDwg, DataGridView secondDwg)
-        {
-            secondDwg.Rows.Clear();
+            selectedRows = e.RowIndex;
 
-            for (int i = 0; i < firstDwg.Rows.Count - 1; i++)
+            if (e.RowIndex >= 0)
             {
-                secondDwg.Rows.Add(firstDwg.Rows[i].Cells[1].Value.ToString().Remove(10), firstDwg.Rows[i].Cells[2].Value,
-                    firstDwg.Rows[i].Cells[3].Value, firstDwg.Rows[i].Cells[4].Value);
+                DataGridViewRow row = dataGridView2.Rows[selectedRows];
+
+                dateTimePicker4.Value = DateTime.Parse(row.Cells[2].Value.ToString());
+                dateTimePicker5.Value = DateTime.Parse(row.Cells[1].Value.ToString());
+                textBox3.Text = row.Cells[3].Value.ToString();
             }
         }
 
-        private void refrashDataGrid(DataGridView dwg)
+        private void dateTimePicker3_ValueChanged(object sender, EventArgs e)
         {
-            dwg.Rows.Clear();
-
-            string query = $"SELECT * FROM Tracker";
-
-            SqlCommand command = new SqlCommand(query, dataBase.getConnection());
-            dataBase.openConnection();
-
-            SqlDataReader reader = command.ExecuteReader();
-
-            while (reader.Read())
-            {
-                readSingleRow(dwg, reader);
-            }
-            reader.Close();
         }
 
         private void editInfomarion(DateTime date)
@@ -136,7 +199,7 @@ namespace TimeTracker
             {
                 if (dataGridView1.Rows[i].Cells[1].Value.Equals(date))
                 {
-                    for(int j = 2; j < dataGridView1.ColumnCount; j++)
+                    for (int j = 2; j < dataGridView1.ColumnCount; j++)
                     {
                         textBox1.Text += dataGridView1.Rows[i].Cells[j].Value.ToString();
                         textBox1.Text += "   ";
@@ -144,9 +207,82 @@ namespace TimeTracker
                     textBox1.Text += "\r\n";
                 }
             }
-
         }
 
+        private void Form1_Load(object sender, EventArgs e)
+        {
+            dateTimePicker1.MinDate = DateTime.Today;
+            createColumns();
+            createColumns(dataGridView2);
+            refrashDataGrid(dataGridView1);
+            readClone(dataGridView1, dataGridView2);
+            status = statusProgress();
+            if (status)
+            {
+                comboBox1.Visible = false;
+                label8.Visible = false;
+                button2.Text = "Закончить";
+            }
+            else
+            {
+                createBox(DateTime.Today);
+                button2.Text = "Начать";
+            }
+            editInfomarion(DateTime.Today);
+        }
+
+        private string getID(string text)
+        {
+            return comboBox2.Items[0].ToString();
+        }
+
+        private void monthCalendar1_DateChanged(object sender, DateRangeEventArgs e)
+        {
+            editInfomarion(monthCalendar1.SelectionRange.Start);
+        }
+
+        private void readClone(DataGridView firstDwg, DataGridView secondDwg)
+        {
+            secondDwg.Rows.Clear();
+
+            for (int i = 0; i < firstDwg.Rows.Count - 1; i++)
+            {
+                secondDwg.Rows.Add(firstDwg.Rows[i].Cells[1].Value.ToString().Remove(10), firstDwg.Rows[i].Cells[2].Value,
+                    firstDwg.Rows[i].Cells[3].Value, firstDwg.Rows[i].Cells[4].Value);
+            }
+        }
+
+        private void readSingleRow(DataGridView dwg, IDataRecord record)
+        {
+            dwg.Rows.Add(record.GetInt32(0), record.GetValue(1), record.GetValue(2), record.GetValue(3), record.GetString(4), record.GetString(5));
+        }
+
+        private async void refrashDataGrid(DataGridView dwg)
+        {
+            dwg.Rows.Clear();
+
+            SqlDataReader reader = await dataBase.GetElementsList();
+
+            while (reader.Read())
+            {
+                readSingleRow(dwg, reader);
+            }
+            reader.Close();
+        }
+
+        private bool statusProgress()
+        {
+            for (int i = 0; i < dataGridView1.Rows.Count - 1; i++)
+            {
+                if (dataGridView1.Rows[i].Cells[1].Value.Equals(DateTime.Today) &&
+                    dataGridView1.Rows[i].Cells[5].Value.Equals("Выполняется"))
+                {
+                    id = dataGridView1.Rows[i].Cells[0].Value.ToString();
+                    return true;
+                }
+            }
+            return false;
+        }
         private void tabControl1_DrawItem(object sender, DrawItemEventArgs e)
         {
             Graphics g;
@@ -183,196 +319,12 @@ namespace TimeTracker
 
             e.Graphics.ResetClip();
         }
-
-        private void button3_Click(object sender, EventArgs e)
+        private void tabPage1_Click(object sender, EventArgs e)
         {
-            Close();
-        }
-
-        private void button2_Click(object sender, EventArgs e)
-        {
-            string query;
-            if (status)
-            {
-                label8.Visible = true;
-                comboBox1.Visible = true;
-                status = false;
-                button2.Text = "Начать";
-                query = $"UPDATE Tracker SET Time_Stop = \'{DateTime.Now.TimeOfDay.ToString().Remove(8)}\', " +
-                    $"Status_Task = \'Выполнено\'" +
-                    $"WHERE id = \'{id}\'";
-
-                SqlCommand command = new SqlCommand(query, dataBase.getConnection());
-                command.ExecuteReader();
-                dataBase.closeConnection();
-                refrashDataGrid(dataGridView1);
-                createBox(DateTime.Today);
-            } else
-            {
-                label8.Visible = false;
-                comboBox1.Visible = false;
-                status = true;
-                id = comboBox2.Items[comboBox1.SelectedIndex].ToString();
-                button2.Text = "Закончить";
-                query = $"UPDATE Tracker SET Time_Start = \'{DateTime.Now.TimeOfDay.ToString().Remove(8)}\', " +
-                    $"Status_Task = \'Выполняется\'" +
-                    $"WHERE id = \'{id}\'";
-
-                SqlCommand command = new SqlCommand(query, dataBase.getConnection());
-                command.ExecuteReader();
-                dataBase.closeConnection();
-                refrashDataGrid(dataGridView1);                
-            }
-            editInfomarion(DateTime.Today);
-
-        }
-
-        private void button1_Click(object sender, EventArgs e)
-        {
-            tabControl1.SelectedIndex = 1;
         }
 
         private void textBox1_TextChanged(object sender, EventArgs e)
         {
-
-        }
-
-        private void Form1_Load(object sender, EventArgs e)
-        {
-            dateTimePicker1.MinDate = DateTime.Today;
-            createColumns();
-            createColumns(dataGridView2);
-            refrashDataGrid(dataGridView1);
-            readClone(dataGridView1, dataGridView2);
-            status = statusProgress();
-            if (status)
-            {
-                comboBox1.Visible = false;
-                label8.Visible = false;
-                button2.Text = "Закончить";
-            } else
-            {
-                createBox(DateTime.Today);
-                button2.Text = "Начать";
-            }
-            editInfomarion(DateTime.Today);
-        }
-
-        private void dateTimePicker3_ValueChanged(object sender, EventArgs e)
-        {
-            
-        }
-
-        private void button4_Click(object sender, EventArgs e)
-        {
-            tabControl1.SelectedIndex = 0;
-        }
-
-        private void button5_Click(object sender, EventArgs e)
-        {
-            if (dateTimePicker3.Value.TimeOfDay < dateTimePicker2.Value.TimeOfDay)
-            {
-                MessageBox.Show("Время начала не может быть позднее времени окончания!", "Error");
-            }
-            else if (textBox2.Text == "")
-            {
-                MessageBox.Show("Заполните поле планирование!", "Error");
-            }
-            else
-            {
-                string query = $"INSERT INTO Tracker (Day_Of_Completion, Time_Start, Time_Stop, Task, Status_Task) " +
-                    $"VALUES (\'{dateTimePicker1.Value.ToString().Remove(10, 8)}\', " +
-                    $"\'{dateTimePicker2.Value.TimeOfDay}\', " +
-                    $"\'{dateTimePicker3.Value.TimeOfDay}\', " +
-                    $"\'{textBox2.Text}\', " +
-                    $"\'Ожидается\')";
-
-                SqlCommand command = new SqlCommand(query, dataBase.getConnection());
-                command.ExecuteReader();
-                dataBase.closeConnection();
-                refrashDataGrid(dataGridView1);
-                createBox(DateTime.Today);
-
-                textBox2.Text = "";
-                dateTimePicker1.Value = DateTime.Today;
-                dateTimePicker2.Value = DateTime.Today;
-                dateTimePicker3.Value = DateTime.Today;
-                tabControl1.SelectedIndex = 0;
-            }
-        }
-
-        private void monthCalendar1_DateChanged(object sender, DateRangeEventArgs e)
-        {
-            editInfomarion(monthCalendar1.SelectionRange.Start);
-        }
-
-        private void button6_Click(object sender, EventArgs e)
-        {
-            tabControl1.SelectedIndex = 0;
-        }
-
-        private void button7_Click(object sender, EventArgs e)
-        {
-            if (dateTimePicker4.Value.TimeOfDay < dateTimePicker5.Value.TimeOfDay)
-            {
-                MessageBox.Show("Время начала не может быть позднее времени окончания!", "Error");
-            }
-            else if (textBox3.Text == "")
-            {
-                MessageBox.Show("Заполните поле планирование!", "Error");
-            }
-            else
-            {
-                string query = $"UPDATE Tracker SET Time_Start = \'{dateTimePicker5.Value.TimeOfDay}\', " +
-                    $"Time_Stop = \'{dateTimePicker4.Value.TimeOfDay}\', " +
-                    $"Task = \'{textBox3.Text}\' " +
-                    $"WHERE Id = {dataGridView1.Rows[selectedRows].Cells[0].Value}";
-
-                SqlCommand command = new SqlCommand(query, dataBase.getConnection());
-                command.ExecuteReader();
-                dataBase.closeConnection();
-                refrashDataGrid(dataGridView1);
-                readClone(dataGridView1, dataGridView2);
-                editInfomarion(DateTime.Today);
-            }
-        }
-
-        private void button8_Click(object sender, EventArgs e)
-        {
-            string query = $"DELETE FROM Tracker " +
-                $"WHERE Id = {dataGridView1.Rows[selectedRows].Cells[0].Value}";
-            SqlCommand command = new SqlCommand(query, dataBase.getConnection());
-            command.ExecuteReader();
-            dataBase.closeConnection();
-            refrashDataGrid(dataGridView1);
-            readClone(dataGridView1, dataGridView2);
-            editInfomarion(DateTime.Today);
-        }
-
-        private void dataGridView2_CellClick(object sender, DataGridViewCellEventArgs e)
-        {
-            label5.Visible = true;
-            label6.Visible = true;
-            label7.Visible = true;
-            textBox3.Visible = true;
-            dateTimePicker4.Visible = true;
-            dateTimePicker5.Visible = true;
-
-            selectedRows = e.RowIndex;
-
-            if (e.RowIndex >= 0)
-            {
-                DataGridViewRow row = dataGridView2.Rows[selectedRows];
-
-                dateTimePicker4.Value = DateTime.Parse(row.Cells[2].Value.ToString());
-                dateTimePicker5.Value = DateTime.Parse(row.Cells[1].Value.ToString());
-                textBox3.Text = row.Cells[3].Value.ToString();
-            }
-        }
-
-        private void tabPage1_Click(object sender, EventArgs e)
-        {
-
         }
     }
 }
