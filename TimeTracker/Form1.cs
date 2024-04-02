@@ -2,7 +2,9 @@
 using System.Data;
 using System.Data.SqlClient;
 using System.Drawing;
+using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.Windows.Forms.DataVisualization.Charting;
 
 namespace TimeTracker
 {
@@ -30,9 +32,8 @@ namespace TimeTracker
                 comboBox1.Visible = true;
                 status = false;
                 button2.Text = "Начать";
-                await dataBase.EndStartlementTaskAsync(id, "Выполняется", null, DateTime.Now.TimeOfDay.ToString().Remove(8));
-                dataBase.closeConnection();
-                refrashDataGrid(dataGridView1);
+                await dataBase.EndStartlementTaskAsync(id, "Выполнено", null, DateTime.Now.TimeOfDay.ToString().Remove(8));
+                await refrashDataGridAsync(dataGridView1);
                 createBox(DateTime.Today);
             }
             else
@@ -43,8 +44,7 @@ namespace TimeTracker
                 id = comboBox2.Items[comboBox1.SelectedIndex].ToString();
                 button2.Text = "Закончить";
                 await dataBase.EndStartlementTaskAsync(id, "Выполняется", DateTime.Now.TimeOfDay.ToString().Remove(8), null);
-                dataBase.closeConnection();
-                refrashDataGrid(dataGridView1);
+                await refrashDataGridAsync(dataGridView1);
             }
             editInfomarion(DateTime.Today);
         }
@@ -72,7 +72,7 @@ namespace TimeTracker
             else
             {
                 await dataBase.InsertElementAsync(dateTimePicker1.Value.ToString().Remove(10, 8), textBox2.Text, dateTimePicker2.Value.TimeOfDay, dateTimePicker3.Value.TimeOfDay, "Ожидается");
-                refrashDataGrid(dataGridView1);
+                await refrashDataGridAsync(dataGridView1);
                 createBox(DateTime.Today);
 
                 textBox2.Text = "";
@@ -101,7 +101,7 @@ namespace TimeTracker
             else
             {
                 await dataBase.UpdateElementAsync(dataGridView1.Rows[selectedRows].Cells[0].Value.ToString(), textBox3.Text, dateTimePicker5.Value.TimeOfDay, dateTimePicker4.Value.TimeOfDay);
-                refrashDataGrid(dataGridView1);
+                await refrashDataGridAsync(dataGridView1);
                 readClone(dataGridView1, dataGridView2);
                 editInfomarion(DateTime.Today);
             }
@@ -109,8 +109,8 @@ namespace TimeTracker
 
         private async void button8_Click(object sender, EventArgs e)
         {
-            await dataBase.GetElemenyByIdAsync(dataGridView1.Rows[selectedRows].Cells[0].Value.ToString());
-            refrashDataGrid(dataGridView1);
+            await dataBase.DeleteElemenyByIdAsync(dataGridView1.Rows[selectedRows].Cells[0].Value.ToString());
+            await refrashDataGridAsync(dataGridView1);
             readClone(dataGridView1, dataGridView2);
             editInfomarion(DateTime.Today);
         }
@@ -140,12 +140,12 @@ namespace TimeTracker
 
         private void createColumns()
         {
-            dataGridView1.Columns.Add("id", "id");
-            dataGridView1.Columns.Add("Date", "Date");
-            dataGridView1.Columns.Add("Time_Start", "Time_Start");
-            dataGridView1.Columns.Add("Time_Stop", "Time_Stop");
-            dataGridView1.Columns.Add("Task", "Task");
-            dataGridView1.Columns.Add("Status_Task", "Status");
+            dataGridView1.Columns.Add("id", "№");
+            dataGridView1.Columns.Add("Date", "Дата");
+            dataGridView1.Columns.Add("Time_Start", "Время начала");
+            dataGridView1.Columns.Add("Time_Stop", "Время окончания");
+            dataGridView1.Columns.Add("Task", "Задача");
+            dataGridView1.Columns.Add("Status_Task", "Статус");
         }
 
         private void createColumns(DataGridView dwg)
@@ -153,8 +153,7 @@ namespace TimeTracker
             dwg.Columns.Add("Date", "Дата");
             dwg.Columns.Add("Time_Start", "Время начала");
             dwg.Columns.Add("Time_Stop", "Время окончания");
-            dwg.Columns.Add("Task", "Планирование");
-            dwg.Columns.Add("Status_Task", "Статус");
+            dwg.Columns.Add("Task", "Задача");
         }
 
         private void dataGridView2_CellClick(object sender, DataGridViewCellEventArgs e)
@@ -192,7 +191,7 @@ namespace TimeTracker
             }
             else
             {
-                textBox1.Text += date.Day.ToString() + ":\r\n";
+                textBox1.Text += date.ToString("d MMMM") + ":\r\n";
             }
 
             for (int i = 0; i < dataGridView1.Rows.Count - 1; i++)
@@ -208,15 +207,46 @@ namespace TimeTracker
                 }
             }
         }
-
-        private void Form1_Load(object sender, EventArgs e)
+        private void button9_Click(object sender, EventArgs e)
         {
+            button9.Enabled = false;
+            button10.Enabled = true;
+            button11.Enabled = true;
+            statistics(7);
+        }
+        private void button10_Click(object sender, EventArgs e)
+        {
+            button10.Enabled = false;
+            button9.Enabled = true;
+            button11.Enabled = true;
+            statistics(31);
+        }
+
+        private void button11_Click(object sender, EventArgs e)
+        {
+            button11.Enabled = false;
+            button10.Enabled = true;
+            button9.Enabled = true;
+            statistics(365);
+        }
+
+        private async void Form1_Load(object sender, EventArgs e)
+        {
+            
             dateTimePicker1.MinDate = DateTime.Today;
+
             createColumns();
             createColumns(dataGridView2);
-            refrashDataGrid(dataGridView1);
+            await refrashDataGridAsync(dataGridView1);
+            await autoChangesStatusAsync();
+            //DateTime start = DateTime.Parse(dataGridView1.Rows[0].Cells[2].Value.ToString());
+            //DateTime stop = DateTime.Parse(dataGridView1.Rows[0].Cells[3].Value.ToString());
+            //TimeSpan timeGep = stop - start;
+            //string gep = "16:30:32";
+            //int o = (int.Parse(gep.Remove(2)) * 60) + (int.Parse(gep.Remove(0, 3).Remove(2)));
+            //MessageBox.Show(o.ToString());
             readClone(dataGridView1, dataGridView2);
-            status = statusProgress();
+            status = statusProgress("Выполняется");
             if (status)
             {
                 comboBox1.Visible = false;
@@ -225,15 +255,20 @@ namespace TimeTracker
             }
             else
             {
-                createBox(DateTime.Today);
                 button2.Text = "Начать";
+                if (statusProgress("Ожидается"))
+                {
+                    comboBox1.Visible = true;
+                    label8.Visible = true;
+                    createBox(DateTime.Today);                   
+                }
+                else
+                {
+                    button2.Enabled = false;
+                }
             }
             editInfomarion(DateTime.Today);
-        }
-
-        private string getID(string text)
-        {
-            return comboBox2.Items[0].ToString();
+            statistics(7);
         }
 
         private void monthCalendar1_DateChanged(object sender, DateRangeEventArgs e)
@@ -247,35 +282,59 @@ namespace TimeTracker
 
             for (int i = 0; i < firstDwg.Rows.Count - 1; i++)
             {
-                secondDwg.Rows.Add(firstDwg.Rows[i].Cells[1].Value.ToString().Remove(10), firstDwg.Rows[i].Cells[2].Value,
-                    firstDwg.Rows[i].Cells[3].Value, firstDwg.Rows[i].Cells[4].Value);
+                DateTime dt = DateTime.Parse(firstDwg.Rows[i].Cells[1].Value.ToString());
+                if (dt >= DateTime.Today)
+                {
+                    secondDwg.Rows.Add(firstDwg.Rows[i].Cells[1].Value.ToString().Remove(10), firstDwg.Rows[i].Cells[2].Value,
+                        firstDwg.Rows[i].Cells[3].Value, firstDwg.Rows[i].Cells[4].Value);
+                }
             }
         }
 
         private void readSingleRow(DataGridView dwg, IDataRecord record)
         {
-            dwg.Rows.Add(record.GetInt32(0), record.GetValue(1), record.GetValue(2), record.GetValue(3), record.GetString(4), record.GetString(5));
+            monthCalendar1.AddBoldedDate(DateTime.Parse(record.GetValue(1).ToString()));
+            dwg.Rows.Add(record.GetInt32(0), record.GetValue(1), record.GetValue(2), record.GetValue(3), record.GetString(4), record.GetString(5));           
         }
 
-        private async void refrashDataGrid(DataGridView dwg)
+        private async Task refrashDataGridAsync(DataGridView dwg)
         {
             dwg.Rows.Clear();
 
-            SqlDataReader reader = await dataBase.GetElementsList();
+            SqlDataReader reader = dataBase.GetElementsList();
 
-            while (reader.Read())
+            while (await reader.ReadAsync())
             {
                 readSingleRow(dwg, reader);
             }
             reader.Close();
+            dataBase.closeConnection();
         }
 
-        private bool statusProgress()
+        private async Task autoChangesStatusAsync()
+        {
+            for (int i = 0; i < dataGridView1.Rows.Count - 1; i++)
+            {
+                DateTime dt = DateTime.Parse(dataGridView1.Rows[i].Cells[1].Value.ToString());
+
+                if (dt >= DateTime.Today) { break; }
+                if (dataGridView1.Rows[i].Cells[5].Value.Equals("Ожидается"))
+                {
+                    await dataBase.ChangesStatus(dataGridView1.Rows[i].Cells[0].Value.ToString());
+                } else if (dataGridView1.Rows[i].Cells[5].Value.Equals("Выполняется"))
+                {
+                    await dataBase.EndChangesStatus(dataGridView1.Rows[i].Cells[0].Value.ToString());
+                }
+            }
+            await refrashDataGridAsync(dataGridView1);
+        }
+
+        private bool statusProgress(string status)
         {
             for (int i = 0; i < dataGridView1.Rows.Count - 1; i++)
             {
                 if (dataGridView1.Rows[i].Cells[1].Value.Equals(DateTime.Today) &&
-                    dataGridView1.Rows[i].Cells[5].Value.Equals("Выполняется"))
+                    dataGridView1.Rows[i].Cells[5].Value.Equals(status))
                 {
                     id = dataGridView1.Rows[i].Cells[0].Value.ToString();
                     return true;
@@ -283,6 +342,87 @@ namespace TimeTracker
             }
             return false;
         }
+
+        private void statistics(int value)
+        {
+            chart1.Series[0].Points.Clear();
+            TimeSpan[] graph = timeSpean(value);
+            DateTime day = dayStartStatistix(value);
+
+            chart1.ChartAreas[0].AxisX.LabelStyle.Format = "dd-MM-yyyy";
+            chart1.ChartAreas[0].AxisY.LabelStyle.Format = "HH:mm:ss";
+            chart1.Series[0].XValueType = ChartValueType.DateTime;
+            chart1.ChartAreas[0].AxisX.Minimum = day.ToOADate();
+            chart1.ChartAreas[0].AxisX.Maximum = DateTime.Today.ToOADate();
+            chart1.ChartAreas[0].AxisY.Minimum = DateTime.Today.ToOADate();
+
+            for (int i = 0; i < value; i++)
+            {
+                if (graph[i] > TimeSpan.Parse(DateTime.Today.TimeOfDay.ToString()))
+                {
+                    chart1.Series[0].Points.AddXY(day, DateTime.Parse(graph[i].ToString()));
+                }
+                day = day.AddDays(1);
+            }
+            
+
+        }
+
+        private TimeSpan[] timeSpean(int count)
+        {
+            TimeSpan[] output = new TimeSpan[count];
+            DateTime day = dayStartStatistix(count);
+            TimeSpan timeng = TimeSpan.Parse("00:00:00");
+
+            for (int i = 0; i < count; i++)
+            {
+                for (int j = 0; j < dataGridView1.Rows.Count - 1; j++)
+                {
+                    if (DateTime.Parse(dataGridView1.Rows[j].Cells[1].Value.ToString()) > day)
+                    {
+                        break;
+                    }
+                    else if (DateTime.Parse(dataGridView1.Rows[j].Cells[1].Value.ToString()) == day &&
+                        dataGridView1.Rows[j].Cells[5].Value.Equals("Выполнено"))
+                    {
+                        DateTime start = DateTime.Parse(dataGridView1.Rows[j].Cells[2].Value.ToString());
+                        DateTime stop = DateTime.Parse(dataGridView1.Rows[j].Cells[3].Value.ToString());
+                        TimeSpan timeGep = stop - start + timeng;
+                        timeng = timeGep;
+                    }
+                }
+                day = day.AddDays(1);
+                output[i] = timeng;
+                timeng = TimeSpan.Parse("00:00:00");
+            }
+
+            return output;
+        }
+
+        private DateTime dayStartStatistix(int count)
+        {
+            string dateGep;
+            DateTime day;
+            if (count == 7)
+            {
+                dateGep = "07.01." + DateTime.Today.Year.ToString();
+                day = new DateTime(2024, 1, 1).AddDays(Double.Parse(
+                DateTime.Today.Subtract(DateTime.Parse(dateGep)).Days.ToString()));
+            }
+            else if (count == 31)
+            {
+                dateGep = "01.02." + DateTime.Today.Year.ToString();
+                day = new DateTime(2024, 1, 1).AddDays(Double.Parse(
+                DateTime.Today.Subtract(DateTime.Parse(dateGep)).Days.ToString()));
+            }
+            else
+            {
+                dateGep = DateTime.Today.ToString("dd.MM") + "." + (DateTime.Today.Year - 1).ToString();
+                day = DateTime.Parse(dateGep);
+            }
+            return day;
+        }
+       
         private void tabControl1_DrawItem(object sender, DrawItemEventArgs e)
         {
             Graphics g;
@@ -326,5 +466,7 @@ namespace TimeTracker
         private void textBox1_TextChanged(object sender, EventArgs e)
         {
         }
+
+
     }
 }

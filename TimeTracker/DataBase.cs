@@ -31,20 +31,35 @@ namespace TimeTracker
             return sqlConnection;
         }
 
-        public async Task<SqlDataReader> GetElementsList() 
+        public SqlDataReader GetElementsList() 
         {
-            string Query = $"SELECT * FROM Tracker";
+            openConnection();
+            string Query = $"SELECT * FROM Tracker ORDER BY Day_Of_Completion ASC, Time_Start ASC";
             ExecuteCommand = new SqlCommand(Query, getConnection());
-          return await ExecuteCommand.ExecuteReaderAsync();
+            return ExecuteCommand.ExecuteReader();
         }
 
         public async Task<bool> EndStartlementTaskAsync(string id, string status, string start, string end)
         {
             string timeCondition = string.IsNullOrEmpty(end) ? "Time_Start" : "Time_Stop";
             string timeValue = string.IsNullOrEmpty(end) ? start : end;
-            string Query = $"UPDATE Tracker SET \'{timeCondition}\' = \'{timeValue}\', " +
+            string Query = $"UPDATE Tracker SET {timeCondition} = \'{timeValue}\', " +
                               $"Status_Task = \'{status}\'" +
                               $"WHERE id = \'{id}\'";
+            return await ExecuteQueryAsync(Query);
+        }
+
+        public async Task<bool> ChangesStatus(string id)
+        {
+            string Query = $"UPDATE Tracker SET Status_Task = \'Пропущено\'" +
+                            $"WHERE id = \'{id}\'";
+            return await ExecuteQueryAsync(Query);
+        }
+        public async Task<bool> EndChangesStatus(string id)
+        {
+            string Query = $"UPDATE Tracker SET Status_Task = \'Выполнено\', " +
+                            $"Time_Stop = \'23:59:59\' " +
+                            $"WHERE id = \'{id}\'";
             return await ExecuteQueryAsync(Query);
         }
 
@@ -68,7 +83,7 @@ namespace TimeTracker
             return await ExecuteQueryAsync(Query);
         }
 
-        public async Task<bool> GetElemenyByIdAsync(string id)
+        public async Task<bool> DeleteElemenyByIdAsync(string id)
         {
             string Query = $"DELETE FROM Tracker WHERE Id = {id}";
             return await ExecuteQueryAsync(Query);
